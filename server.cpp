@@ -81,9 +81,8 @@ void handle_received_UDP(const map<string, vector<string>>& topics,
         DIE(1, "Error receiving UDP message");
     }
 
-    // create a TCP message to send to the TCP client
     struct sockaddr_in cli_addr;
-    socklen_t cli_len = sizeof(cli_addr); // set the length of client address
+    socklen_t cli_len = sizeof(cli_addr);
     getpeername(UDP_socket, (struct sockaddr*)&cli_addr, &cli_len);
 
     TCP_message tcp_message;
@@ -91,25 +90,20 @@ void handle_received_UDP(const map<string, vector<string>>& topics,
     tcp_message.source_port = cli_addr.sin_port;
     tcp_message.message = *udp_message;
 
-    // check if any client has subscribed to the received message topic
     auto topic_it = topics.find(string(udp_message->topic));
     if (topic_it == topics.end()) {
-        // no clients are subscribed to this topic
         return;
     }
 
-    // iterate over all the clients subscribed to this topic
     for (const string& client_id : topic_it->second) {
         auto client_it = clients.find(client_id);
         if (client_it == clients.end()) {
-            // client not found in the clients map
             continue;
         }
 
         ClientData* client = client_it->second;
 
         if (client->active) {
-            // client is active, send the TCP message to this client
             send(client->socket, (char*)&tcp_message, sizeof(tcp_message), 0);
         }
     }
@@ -150,7 +144,6 @@ void handle_client_reconnect(ClientData *client,
 {
     if (client->active)
     {
-        // A client is trying to connect with another client's ID
         close(clientfd);
         printf("Client %s already connected.\n", ID);
         return;
@@ -197,7 +190,6 @@ void handle_new_TCP_client(map<string, ClientData *> &clients,
         printf("New client %s connected from %s:%d.\n", ID,
                inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
-        // se creeaza un nou client
         ClientData *client = (ClientData *)malloc(sizeof(ClientData));
         DIE(client == NULL, "malloc");
 
@@ -205,12 +197,9 @@ void handle_new_TCP_client(map<string, ClientData *> &clients,
         client->socket = clientfd;
         strcpy(client->ID, ID);
 
-        // clientul este retinut
         clients[ID_string] = client;
-        // se asociaza socketul acestui client nou creat
         socket_ID[clientfd] = ID_string;
 
-        // add new socket to poll
         add_to_polling_set(clientfd, fds, nfds);
     }
     else
@@ -314,11 +303,9 @@ void remove_subscriber_from_topic(const string& topic_name,
 void unsubscribe_from_topic(char* message, 
                             map<string, vector<string>>& topics, 
                             const string& ID_string) {
-    // extract the topic from the message
     char* topic = strtok(message + 12, " ");
     string topic_string = string(topic);
 
-    // remove the client from the subscribers of the topic
     remove_subscriber_from_topic(topic_string, ID_string, topics);
 }
 
@@ -344,7 +331,6 @@ void receive_tcp_message(map<string, ClientData *> &clients,
     char buf[MAX_TCP_CMD_LEN];
     memset(buf, 0, MAX_TCP_CMD_LEN);
 
-    // se primeste un mesaj de la un client TCP
     int n = recv(socket, buf, MAX_TCP_CMD_LEN, 0);
     DIE(n < 0, "recv");
 
@@ -352,20 +338,17 @@ void receive_tcp_message(map<string, ClientData *> &clients,
     memcpy(ID, socket_ID[socket].c_str(), 10);
     string ID_string = socket_ID[socket];
 
-    // clientul trebuie deconectat
     if (n == 0)
     {
         remove_client(socket, socket_ID, clients, fds, nfds);
         return;
     }
 
-    // A fost primit un mesaj de subscribe sau de unsubscribe:
     if (strncmp(buf, "subscribe", 9) == 0)
     {
         subscribe_to_topic(buf, topics, ID_string);
     }
 
-    // daca se primeste un mesaj de unsubscribe
     if (strncmp(buf, "unsubscribe", 11) == 0)
     {
         unsubscribe_from_topic(buf, topics, ID_string);
@@ -375,7 +358,6 @@ void receive_tcp_message(map<string, ClientData *> &clients,
 int open_socket(char *port, 
                 int type)
 {
-    // create socket
     int sockfd = socket(AF_INET, type, 0);
 
     if (sockfd < 0)
@@ -384,21 +366,17 @@ int open_socket(char *port,
         DIE(sockfd < 0, "Error creating socket");
     }
 
-    // set socket options
     int optval = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-    // set sockaddr_in struct
     struct sockaddr_in servaddr;
     memset((char *)&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET; // IPv4
     servaddr.sin_addr.s_addr = INADDR_ANY;
     servaddr.sin_port = htons(atoi(port));
 
-    // bind socket
     int bind_ret = bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
 
-    // check if bind was successful
     if (bind_ret < 0)
     {
         close(sockfd);
@@ -407,7 +385,7 @@ int open_socket(char *port,
 
     return sockfd;
 }
-// disable Nagle's algorithm
+
 void disable_nagle(int sockfd)
 {
     int aux = 1;
@@ -415,29 +393,24 @@ void disable_nagle(int sockfd)
     DIE(deactivate < 0, "Error deactivating Nagle's algorithm");
 }
 
-// create function for opening TCP socket
 int open_TCP(char *port)
 {
     int rsp = open_socket(port, SOCK_STREAM);
 
     disable_nagle(rsp);
 
-    // set socket to listen
     int listen_ret = listen(rsp, 1);
 
-    // check if listen was successful
     DIE(listen_ret < 0, "Error listening");
 
     return rsp;
 }
 
-// create function for opening UDP socket
 int open_UDP(char *port)
 {
     return open_socket(port, SOCK_DGRAM);
 }
 
-// create function for deleting all the clients from the database
 void delete_clients(map<string, ClientData *> &clients)
 {
     for (auto it = clients.begin(); it != clients.end(); ++it)

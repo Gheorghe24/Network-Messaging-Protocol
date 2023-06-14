@@ -221,7 +221,6 @@ int main(int argc, char *argv[])
     DIE(argc < 4, "Not enough arguments provided");
 
     int sockfd = create_socket_and_connect(argv[2], atoi(argv[3]));
-    // se trimite ID-ul acestui client
     int ret = send(sockfd, argv[1], strlen(argv[1]), 0);
     DIE(ret < 0, "send");
 
@@ -236,7 +235,6 @@ int main(int argc, char *argv[])
         ret = poll(fds, 2, -1);
         DIE(ret < 0, "poll");
 
-        // daca se primeste mesaj de la server
         if (fds[0].revents & POLLIN)
         {
             ret = print_received_payload(sockfd);
@@ -246,7 +244,6 @@ int main(int argc, char *argv[])
             }
         }
 
-        // daca se primeste mesaj de la tastatura
         if (fds[1].revents & POLLIN)
         {
             ret = handle_stdin(sockfd);
